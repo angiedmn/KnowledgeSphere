@@ -11,3 +11,6 @@ __pycache__/
 
 # Chroma database 
 db/
+db1/
+
+multi_modal_rag.py
