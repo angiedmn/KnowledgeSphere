@@ -1,12 +1,14 @@
 import pytesseract
-
-pytesseract.pytesseract.tesseract_cmd = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
+import os
+# 1. Force Windows to add Tesseract to the PATH (varies pc to pc depending on tesseract's file path and environment variables)
+os.environ["PATH"] += os.pathsep + r"C:\Program Files\Tesseract-OCR"
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe" 
 
 from unstructured.partition.pdf import partition_pdf
 from unstructured.chunking.title import chunk_by_title
-
+pytesseract.pytesseract.tesseract_cmd = (
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+)
 def partition_document(file_path: str):
 
     elements = partition_pdf(
@@ -32,21 +34,27 @@ def create_chunks_by_title(elements):
     print(f"created {len(chunks)} chunks")
     return chunks
 
+
+#changed
 def seperate_content_types(chunk):
     content_data = {
         'text' : chunk.text,
-        'tables' : [], #text_as_html
-        'images' : [], #base64
-        'types' : ['text']
+        'tables' : [],
+        'images' : [],
+        'types' : ['text'],
+        'page_number': getattr(chunk.metadata, 'page_number', None) if hasattr(chunk, 'metadata') else None,
     }
 
-    if hasattr(chunk, 'metadata') and hasattr(chunk.metadata, 'orig_elements'): #if chunk has metadata attribute and if chunk.metadata has orig_elements attribute
+    if hasattr(chunk, 'metadata') and hasattr(chunk.metadata, 'orig_elements'):
         for element in chunk.metadata.orig_elements:
             element_type = type(element).__name__
 
+            if content_data['page_number'] is None:
+                content_data['page_number'] = getattr(element.metadata, 'page_number', None)
+
             if element_type == "Table":
                 content_data['types'].append('table')
-                table_html = getattr(element.metadata,'text_as_html', element.text) #get value of the attr 'text_as_html". otherwise get default value of "element text"
+                table_html = getattr(element.metadata,'text_as_html', element.text)
                 content_data['tables'].append(table_html)
 
             elif element_type =='Image':
@@ -55,5 +63,5 @@ def seperate_content_types(chunk):
                     content_data['types'].append('image')
                     content_data['images'].append(element.metadata.image_base64)
     
-    content_data['types'] = list(set(content_data['types'])) #list of all unique data types
+    content_data['types'] = list(set(content_data['types']))
     return content_data
