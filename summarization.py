@@ -73,8 +73,9 @@ def create_ai_summary(text: str, tables: List[str], images: List[str]):
 
         return summary
 
+#changed
 
-def summarize_chunks(chunks):
+def summarize_chunks(chunks, source_file: str = None):
     langchain_documents = []
     total_chunks = len(chunks)
 
@@ -107,12 +108,12 @@ def summarize_chunks(chunks):
         doc = Document(
             page_content = enhanced_content,
             metadata = {
+                "page_number": content_data.get('page_number'), # <-- ADD THIS LINE
                 "original_content" : json.dumps({
                     "raw_text" : content_data['text'],
                     "tables_html" : content_data['tables'],
                     "images_base64":  content_data['images']
                 })
-
             }
         )
         langchain_documents.append(doc)
