@@ -1,3 +1,5 @@
+
+from langchain_core.documents import Document
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from config import CHROMA_DIR, EMBEDDING_MODEL_NAME, RETRIEVER_K, RETRIEVER_SCORE_THRESHOLD
@@ -17,6 +19,9 @@ def add_documents(documents):
     db = get_vector_store()
     db.add_documents(documents)
     print(f" Vector store updated at {CHROMA_DIR}")
+    from Hybrid_retriever import get_bm25_retriever  # local import avoids circular import
+    get_bm25_retriever(force_rebuild=True)  # keep BM25 index in sync with new content
+
     return db
 
 

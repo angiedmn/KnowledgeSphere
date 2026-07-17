@@ -9,5 +9,8 @@ Hybrid_retriever.py
 abc.py
 temp_ingest/
 stored_docx/
+conversational_RAG.py
+
+
 
 

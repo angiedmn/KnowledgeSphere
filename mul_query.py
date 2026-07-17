@@ -41,6 +41,35 @@ def reciprocal_rank_fusion(chunk_lists, k=60):
     )
     return sorted_chunks
 
+def hybrid_retrieve(query, vector_retriever, bm25_retriever):
+    """One query -> vector results + keyword results -> RRF-fused per-query list."""
+    vector_docs = vector_retriever.invoke(query)
+    keyword_docs = bm25_retriever.invoke(query)
+    fused = reciprocal_rank_fusion([vector_docs, keyword_docs])
+    return [doc for doc, score in fused]
+
+
+def multi_query_hybrid_retrieve(query, vector_retriever, bm25_retriever, num_variations=3, top_k=5):
+    """Full pipeline: query -> variations -> hybrid retrieve each -> final RRF."""
+    print("\n--- Generating Query Variations ---")
+    variations = generate_query_variations(query, num_variations)
+    all_queries = [query] + variations
+
+    for i, q in enumerate(all_queries):
+        print(f"Query {i+1}: {q}")
+
+    print("\n--- Hybrid Retrieving and Fusing Documents ---")
+    per_query_results = [
+        hybrid_retrieve(q, vector_retriever, bm25_retriever)
+        for q in all_queries
+    ]
+
+    final_fused = reciprocal_rank_fusion(per_query_results)
+    final_docs = [doc for doc, score in final_fused[:top_k]]
+
+    print(f"Successfully fused and retrieved top {len(final_docs)} documents!")
+    return final_docs
+
 def multi_query_retrieve(query: str, retriever, num_variations: int = 3, top_k: int = 5):
     """
     Expands `query` into multiple phrasings, retrieves for each (plus the
