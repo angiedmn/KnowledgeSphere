@@ -6,9 +6,6 @@ pytesseract.pytesseract.tesseract_cmd = (
     r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 )
 
-from unstructured.partition.pdf import partition_pdf
-from unstructured.chunking.title import chunk_by_title
-
 def partition_document(file_path: str):  
     elements = partition_pdf(
         filename= file_path,
