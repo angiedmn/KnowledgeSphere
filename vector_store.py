@@ -33,8 +33,12 @@ def get_bm25_retriever(k=15, force_rebuild=False):
     global _bm25_retriever_cache
     if _bm25_retriever_cache is None or force_rebuild:
         docs = get_all_documents()
+        if not docs:
+            _bm25_retriever_cache = None
+            return None
         _bm25_retriever_cache = BM25Retriever.from_documents(docs)
-    _bm25_retriever_cache.k = k
+    if _bm25_retriever_cache is not None:
+        _bm25_retriever_cache.k = k
     return _bm25_retriever_cache
 
 def add_documents(documents, source_file: str = None):
@@ -69,3 +73,12 @@ def delete_by_source(source_file: str):
         db.delete(ids=existing["ids"])
         print(f"Removed {len(existing['ids'])} old chunks for {source_file}")
         get_bm25_retriever(force_rebuild=True)  # keep BM25 in sync
+
+def clear_all_documents():
+    """Wipes the entire collection — use when only one document should be active at a time."""
+    db = get_vector_store()
+    all_ids = db.get()['ids']
+    if all_ids:
+        db.delete(ids=all_ids)
+        print(f"Cleared {len(all_ids)} chunks from vector store")
+    get_bm25_retriever(force_rebuild=True)

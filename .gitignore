@@ -6,3 +6,4 @@ db/
 temp_ingest/
 Hybrid_retriever.py
 untrack/
+__pycache__/

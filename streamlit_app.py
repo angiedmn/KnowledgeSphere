@@ -7,7 +7,8 @@ import shutil
 from langchain_core.messages import HumanMessage, AIMessage
 from ingestion import partition_document, create_chunks_by_title
 from summarization import summarize_chunks
-from vector_store import add_documents, get_vector_store, delete_by_source
+from vector_store import add_documents, get_vector_store, clear_all_documents
+
 from conversational_RAG import ask_question
 import config
 import conversational_RAG
@@ -15,6 +16,7 @@ import base64
 import random
 import time
 import threading
+
 
 
 #PAGE CONFIG
@@ -61,8 +63,7 @@ def process_uploaded_file(uploaded_file):
         overlay = st.empty()
         render_loading_overlay(overlay, 0, "Starting...")
 
-        from vector_store import delete_by_source
-        delete_by_source(file_path)
+        clear_all_documents()   # wipes everything, not just this file
 
         elements = run_with_animated_progress(
             overlay, lambda: partition_document(file_path), 5, 20, "Partitioning PDF..."
