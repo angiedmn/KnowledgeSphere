@@ -12,6 +12,9 @@ from conversational_RAG import ask_question
 import config
 import conversational_RAG
 import base64
+import random
+import time
+import threading
 
 
 #PAGE CONFIG
@@ -54,25 +57,31 @@ def process_uploaded_file(uploaded_file):
         file_path = os.path.join(TEMP_UPLOAD_DIR, uploaded_file.name)
         with open(file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
-        
-        with st.status(f"Ingesting `{uploaded_file.name}`...") as status:
-            st.write("Partitioning PDF...")
 
-            delete_by_source(file_path)
+        overlay = st.empty()
+        render_loading_overlay(overlay, 0, "Starting...")
 
-            elements = partition_document(file_path)
-            st.write("Creating chunks...")
-            chunks = create_chunks_by_title(elements)
-            st.write("Summarizing chunks...")
-            documents = summarize_chunks(chunks, source_file=file_path)
-            st.write("Adding to vector store...")
-            add_documents(documents, source_file=file_path)
-            status.update(label="Ingestion complete!", state="complete")
-    
+        from vector_store import delete_by_source
+        delete_by_source(file_path)
+
+        elements = run_with_animated_progress(
+            overlay, lambda: partition_document(file_path), 5, 20, "Partitioning PDF..."
+        )
+        chunks = run_with_animated_progress(
+            overlay, lambda: create_chunks_by_title(elements), 20, 28, "Creating chunks..."
+        )
+        documents = run_summarize_with_progress(overlay, chunks, file_path, 28, 90)
+        run_with_animated_progress(
+            overlay, lambda: add_documents(documents, source_file=file_path), 90, 99, "Embedding & storing..."
+        )
+
+        render_loading_overlay(overlay, 100, "Done!")
+        time.sleep(0.4)
+        overlay.empty()
+
         st.session_state.current_pdf_path = file_path
-        
         st.session_state.vector_store_status = "Database loaded"
-        st.session_state.chat_history = [] 
+        st.session_state.chat_history = []
         st.rerun()
 
 def display_pdf(file_path, page_num):
@@ -113,6 +122,109 @@ def render_sources(msg_key: str, answer_text: str, fallback_pages):
     if st.session_state.viewer_page in cited_pages:
         with st.expander(f"📄 Viewing Page {st.session_state.viewer_page}", expanded=True):
             display_pdf(st.session_state.current_pdf_path, st.session_state.viewer_page)
+
+NUM_SEGMENTS = 16
+
+def render_loading_overlay(placeholder, percent: int, label: str):
+    # ease-out curve: fills faster early, slows near the end — feels quicker overall
+    eased = 1 - (1 - percent / 100) ** 2
+    filled = round(eased * NUM_SEGMENTS)
+
+    segments_html = ""
+    for i in range(NUM_SEGMENTS):
+        cls = "segment filled" if i < filled else "segment"
+        segments_html += f"<div class='{cls}'></div>"
+
+    html = f"""
+    <div class='loading-overlay'>
+        <div class='loading-title'>Ingesting document</div>
+        <div class='loading-subtitle'>{label}</div>
+        <div class='segment-bar'>{segments_html}</div>
+        <div class='loading-percent'>{percent}%</div>
+    </div>
+    """
+    placeholder.markdown(html, unsafe_allow_html=True)
+
+FILLER_MESSAGES = [
+    "Analyzing document structure...",
+    "Extracting semantic patterns...",
+    "Cross-referencing content blocks...",
+    "Building searchable index...",
+    "Optimizing chunk boundaries...",
+    "Parsing visual elements...",
+    "Linking related concepts...",
+    "Compressing knowledge graph...",
+    "Refining embeddings...",
+    "Indexing key terminology...",
+]
+
+def run_with_animated_progress(overlay, work_fn, start_pct, end_pct, base_label, tick_interval=1.3):
+    """Runs work_fn() in the background while animating the overlay on a
+    fixed, readable cadence in the main thread — decoupled from how long
+    the real work actually takes."""
+    result_holder = {}
+    error_holder = {}
+
+    def _target():
+        try:
+            result_holder['result'] = work_fn()
+        except Exception as e:
+            error_holder['error'] = e
+
+    thread = threading.Thread(target=_target)
+    thread.start()
+
+    tick = 0
+    current_pct = start_pct
+    while thread.is_alive():
+        label = base_label if tick == 0 else random.choice(FILLER_MESSAGES)
+        current_pct = min(current_pct + (end_pct - start_pct) * 0.15, end_pct - 2)
+        render_loading_overlay(overlay, round(current_pct), label)
+        time.sleep(tick_interval)   # <-- this is what makes ticks evenly spaced & readable
+        tick += 1
+
+    thread.join()
+    if 'error' in error_holder:
+        raise error_holder['error']
+
+    render_loading_overlay(overlay, end_pct, f"{base_label.rstrip('.')} — done")
+    time.sleep(0.3)
+    return result_holder['result']
+
+def run_summarize_with_progress(overlay, chunks, source_file, start_pct, end_pct, tick_interval=1.3):
+    progress_state = {"done": 0, "total": len(chunks)}
+
+    def on_progress(done, total):
+        progress_state["done"] = done
+        progress_state["total"] = total
+
+    result_holder = {}
+    def _target():
+        result_holder['result'] = summarize_chunks(chunks, source_file=source_file, progress_callback=on_progress)
+
+    thread = threading.Thread(target=_target)
+    thread.start()
+
+    tick = 0
+    current_pct = start_pct
+    while thread.is_alive():
+        done, total = progress_state["done"], progress_state["total"]
+        if done > 0 and tick % 2 == 0:
+            label = f"Summarizing chunk {done}/{total}..."
+            real_pct = start_pct + (end_pct - start_pct) * (done / total)
+            current_pct = max(current_pct, real_pct)
+        else:
+            label = random.choice(FILLER_MESSAGES)
+            current_pct = min(current_pct + (end_pct - start_pct) * 0.04, end_pct - 1)
+        render_loading_overlay(overlay, round(current_pct), label)
+        time.sleep(tick_interval)
+        tick += 1
+
+    thread.join()
+    render_loading_overlay(overlay, end_pct, "Summarization complete")
+    time.sleep(0.3)
+    return result_holder['result']
+
 
 #sidebar
 

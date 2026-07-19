@@ -75,7 +75,7 @@ def create_ai_summary(text: str, tables: List[str], images: List[str]):
 
 #changed
 
-def summarize_chunks(chunks, source_file: str = None):
+def summarize_chunks(chunks, source_file: str = None, progress_callback = None):
     langchain_documents = []
     total_chunks = len(chunks)
 
@@ -118,6 +118,9 @@ def summarize_chunks(chunks, source_file: str = None):
             }
         )
         langchain_documents.append(doc)
+
+        if progress_callback:
+            progress_callback(current_chunk, total_chunks)   # NEW
     
     print(f"Processed {len(langchain_documents)} chunks")
     return langchain_documents

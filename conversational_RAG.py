@@ -44,32 +44,3 @@ def ask_question(user_query):
     
     return answer, source_pages
 
-# ==========================================
-# CONVERSATIONAL TEST BLOCK
-# ==========================================
-if __name__ == "__main__":
-    print("\n" + "="*50)
-    print(" Conversational RAG Terminal Test")
-    print("Type 'quit' or 'exit' to stop.")
-    print("="*50 + "\n")
-    
-    while True:
-        user_input = input("You: ")
-        
-        if user_input.lower() in ['quit', 'exit']:
-            print("Exiting chat test...")
-            break
-            
-        try:
-            # Call your main function
-            test_answer, test_source_pages = ask_question(user_input)
-            
-            print(f"\nAI Answer: {test_answer}")
-            print(f"Source Pages: {test_source_pages}")
-            
-            # This prints exactly how many messages the AI is currently remembering!
-            print(f"--- [Debug: Chat History contains {len(chat_history)} messages] --- \n")
-            
-        except Exception as e:
-            print(f"\nAn error occurred: {e}\n")
-            
