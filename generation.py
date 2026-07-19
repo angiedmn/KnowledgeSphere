@@ -3,7 +3,11 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_groq import ChatGroq
 from config import LLM_MODEL_NAME, VISION_MODEL_NAME
 
-
+def get_display_page(chunk) -> str:
+    page_num = chunk.metadata.get("page_number")
+    if page_num is None:
+        page_num = chunk.metadata.get("page")
+    return str(int(page_num) + 1) if isinstance(page_num, (int, float)) else "unknown"
 def generate_final_answer(chunks, query, chat_history=None):
     chat_history = chat_history or []
     try:
@@ -54,7 +58,8 @@ def generate_final_answer(chunks, query, chat_history=None):
     CONTENT TO ANALYZE:
     """
         for i, chunk in enumerate(chunks):
-            prompt_text += f"Document {i}\n"
+            page_label = get_display_page(chunk)
+            prompt_text += f"--- Document {i} (PDF Page {page_label}) ---\n"
 
             if "original_content" in chunk.metadata:
                 original_data = json.loads(chunk.metadata["original_content"])
@@ -84,7 +89,13 @@ def generate_final_answer(chunks, query, chat_history=None):
             prompt_text += "\n"
 
         prompt_text += """
-Please provide a clear, comprehensive answer using the text, tables, and images above. If the documents don't contain sufficient information to answer the question, say "I don't have enough information to answer that question based on the provided documents."
+Please provide a clear, comprehensive answer using the text, tables, and images above.
+
+CITATION RULES (must follow):
+- After every sentence or claim that draws on the sources above, add a citation in the exact format [Page X], using the "PDF Page" number given above the relevant Document.
+- If a sentence draws on more than one page, cite each one, e.g. "...as shown in the results [Page 5][Page 7]."
+- Only ever cite a page number that was explicitly given to you above. Never guess or invent one.
+- If the documents don't contain sufficient information to answer the question, say "I don't have enough information to answer that question based on the provided documents." and do not add citations.
 
 ANSWER:"""
 
@@ -103,7 +114,7 @@ ANSWER:"""
             human_msg = HumanMessage(content=prompt_text)  # plain string, no image blocks
 
         messages = [
-            SystemMessage(content="You are a helpful assistant that answers questions based on provided documents and conversation history.")
+            SystemMessage(content="You are a helpful assistant that answers questions based on provided documents and conversation history. You always cite the source page number in [Page X] format immediately after any claim drawn from the documents.")
         ] + chat_history + [human_msg]
 
         response = llm.invoke(messages)

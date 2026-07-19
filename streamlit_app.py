@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import re
 from dotenv import load_dotenv
 load_dotenv()
 import shutil
@@ -32,6 +33,9 @@ load_css("style.css")
 
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
+
+if 'viewer_page' not in st.session_state:
+    st.session_state.viewer_page = None
 
 if 'vector_store_status' not in st.session_state:
     try:
@@ -85,6 +89,31 @@ def start_new_chat():
     st.session_state.chat_history = []
     st.rerun()
 
+def extract_cited_pages(answer_text: str, fallback_pages):
+    """Pull every page number the model actually cited via [Page X] tags.
+    Falls back to the retriever's page list if the model didn't cite anything."""
+    cited = sorted({int(n) for n in re.findall(r"\[Page\s+(\d+)\]", answer_text)})
+    return cited if cited else list(fallback_pages)
+
+def render_sources(msg_key: str, answer_text: str, fallback_pages):
+    """Render one clickable button per cited page. Clicking jumps the PDF
+    viewer straight to that page, the way Claude/Gemini do it."""
+    cited_pages = extract_cited_pages(answer_text, fallback_pages)
+    if not cited_pages or 'current_pdf_path' not in st.session_state:
+        return
+    st.caption("Sources")
+    cols = st.columns(min(len(cited_pages), 6))
+    for i, page in enumerate(cited_pages):
+        with cols[i % len(cols)]:
+            if st.button(f"📄 Page {page}", key=f"{msg_key}_page_{page}", use_container_width=True):
+                st.session_state.viewer_page = page
+
+    # If one of this message's pages is the one currently selected, show the
+    # viewer right under this message so it feels attached to the citation.
+    if st.session_state.viewer_page in cited_pages:
+        with st.expander(f"📄 Viewing Page {st.session_state.viewer_page}", expanded=True):
+            display_pdf(st.session_state.current_pdf_path, st.session_state.viewer_page)
+
 #sidebar
 
 with st.sidebar:
@@ -131,11 +160,9 @@ for message in st.session_state.chat_history:
     elif isinstance(message, AIMessage):
         with st.chat_message("assistant", avatar="🤖"):
             st.markdown(message.content)
-            
+
             pages = message.additional_kwargs.get("source_pages", [])
-            if pages and 'current_pdf_path' in st.session_state:
-                with st.expander(f"📄 View Source (Page {pages[0]})"):
-                    display_pdf(st.session_state.current_pdf_path, pages[0])
+            render_sources(f"hist_{id(message)}", message.content, pages)
 
 
 #chat Input
@@ -154,10 +181,8 @@ if user_query:
                 
                 st.session_state.chat_history = conversational_RAG.chat_history
                 st.markdown(answer)
-                
-                if source_pages and 'current_pdf_path' in st.session_state:
-                    with st.expander(f"📄 View Source (Page {source_pages[0]})"):
-                        display_pdf(st.session_state.current_pdf_path, source_pages[0])
+
+                render_sources(f"new_{len(st.session_state.chat_history)}", answer, source_pages)
             
             except Exception as e:
                 st.error(f"Error generating response: {e}")
