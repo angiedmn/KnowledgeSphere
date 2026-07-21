@@ -1,15 +1,17 @@
-
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_groq import ChatGroq
 from config import LLM_MODEL_NAME
 from vector_store import get_retriever, get_bm25_retriever
 from generation import generate_final_answer
 from multi_query import multi_query_hybrid_retrieve
+from retrieval_profiles import DEFAULT_PROFILE
 
-chat_history = []  
+chat_history = []
 
-def ask_question(user_query):
-    # 1. Reformulate the question based on chat history
+
+def ask_question(user_query, retrieval_profile=None):
+    profile = {**DEFAULT_PROFILE, **(retrieval_profile or {})}
+
     if chat_history:
         messages = [
             SystemMessage(content="You are a strict search query generator. Rewrite the user's new question to be standalone based on the chat history. OUTPUT EXACTLY THE REWRITTEN QUESTION ONLY. Do not add 'Here is the question' or any other conversational text.")
@@ -19,11 +21,24 @@ def ask_question(user_query):
         search_query = llm.invoke(messages).content.strip()
     else:
         search_query = user_query
-        
-    docs = multi_query_hybrid_retrieve(search_query, get_retriever(), get_bm25_retriever())
 
+    vector_retriever = get_retriever(
+        k=profile["k"],
+        search_type=profile["search_type"],
+        lambda_mult=profile["lambda_mult"]
+    )
+    bm25_retriever = get_bm25_retriever(k=profile["k"] * 3)
 
-        
+    docs = multi_query_hybrid_retrieve(
+        search_query,
+        vector_retriever,
+        bm25_retriever,
+        num_variations=profile["num_variations"],
+        top_k=profile["k"],
+        vector_weight=profile["vector_weight"],
+        keyword_weight=profile["keyword_weight"]
+    )
+
     extracted_pages = []
     for doc in docs:
         page_val = doc.metadata.get("page")
@@ -31,16 +46,13 @@ def ask_question(user_query):
             page_val = doc.metadata.get("page_number")
         if page_val is not None:
             extracted_pages.append(int(page_val) + 1)
-                
-    source_pages = list(set(extracted_pages))
-    source_pages.sort()
-    
-    # 5. Generate the final answer using the fused documents
-    answer = generate_final_answer(docs, user_query, chat_history)  
-    
-    # 6. Update chat history
+
+    source_pages = sorted(set(extracted_pages))
+
+    answer = generate_final_answer(docs, user_query, chat_history)
+
     chat_history.append(HumanMessage(content=user_query))
     chat_history.append(AIMessage(content=answer, additional_kwargs={"source_pages": source_pages}))
-    
-    return answer, source_pages
 
+    print(f"Answer: {answer}")
+    return answer, source_pages

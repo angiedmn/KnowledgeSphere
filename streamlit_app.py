@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from ingestion import partition_document, create_chunks_by_title
 from summarization import summarize_chunks
 from vector_store import add_documents, get_vector_store, clear_all_documents
-
+from retrieval_profiles import build_retrieval_profile
 from conversational_RAG import ask_question
 import config
 import conversational_RAG
@@ -250,6 +250,24 @@ with st.sidebar:
                 st.error(f"Error: {e}")
                 
     st.divider()
+
+    st.subheader("Answer Style")
+    directness_label = st.select_slider(
+        "Answer type", options=["Diverse", "Balanced", "Direct"], value="Balanced",
+        help="Direct: fewer, most-relevant chunks — good for exact terms/clauses. Diverse: broader coverage — good for learning a topic."
+    )
+    semantic_label = st.select_slider(
+        "Search focus", options=["Keyword", "Balanced", "Semantic"], value="Balanced",
+        help="Keyword: exact word/phrase matching — good for legal/technical terms. Semantic: meaning-based matching — good for conceptual questions."
+    )
+
+    _directness_map = {"Diverse": 0.0, "Balanced": 0.5, "Direct": 1.0}
+    _semantic_map = {"Keyword": 0.0, "Balanced": 0.5, "Semantic": 1.0}
+
+    retrieval_profile = build_retrieval_profile(
+        directness=_directness_map[directness_label],
+        semanticness=_semantic_map[semantic_label]
+    )
     
     st.subheader("Recent Questions")
     has_history = False
@@ -299,3 +317,5 @@ if user_query:
             
             except Exception as e:
                 st.error(f"Error generating response: {e}")
+
+
