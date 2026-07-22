@@ -4,8 +4,6 @@ Run this once all teammates have sent their eval_results_<name>.json files.
 Merges every eval_results_*.json in this folder into one combined dataset,
 then scores it with RAGAS (judge model wired to Groq, not OpenAI).
 
-Usage:
-    python merge_and_score.py
 
 """
 

@@ -1,4 +1,4 @@
-# run_eval.py
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -23,11 +23,11 @@ from langchain_groq import ChatGroq
 from langchain_huggingface import HuggingFaceEmbeddings
 from config import LLM_MODEL_NAME, EMBEDDING_MODEL_NAME
 
-# --- NEW: read the team member name from the command line ---
-TEAM_MEMBER = sys.argv[1] if len(sys.argv) > 1 else None
-if not TEAM_MEMBER:
-    print("Usage: python run_eval.py <your_name>")
-    sys.exit(1)
+
+TEAM_MEMBER = None
+
+if len(sys.argv) > 1 and not sys.argv[1].startswith("--"):
+    TEAM_MEMBER = sys.argv[1]
 
 my_questions = [q for q in eval_questions if q["assigned_to"] == TEAM_MEMBER]
 print(f"Running {len(my_questions)} questions assigned to {TEAM_MEMBER}")
@@ -62,7 +62,7 @@ def run_pipeline_on_test_set(questions):
             "latency_ms": latency_ms,
         })
 
-    # --- NEW: save to a per-person file, not a shared eval_results.json ---
+   
     output_file = f"eval_results_{TEAM_MEMBER}.json"
     with open(output_file, "w") as f:
         json.dump(results, f, indent=2)

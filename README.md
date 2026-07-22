@@ -89,6 +89,7 @@ GROQ_API_KEY=your_groq_api_key_here
 ```
 
 #5 Local installation of Tesseract OCR (https://tesseract-ocr.github.io/tessdoc/Installation.html)
+(Installation of Poppler: https://poppler.freedesktop.org/)
 
 ### Run the web app
 
@@ -132,7 +133,7 @@ python app.py
 
 | **RAG Pipeline & Backend Engineer** | Document ingestion, chunking, embedding pipeline, environment/config setup, testing, query fusion, LLM prompt/answer generation, response style functioning, RAGAS Evaluation | Aashna Sharma |
 
-| **Frontend & UX Engineer**          | Streamlit chat interface, PDF viewer integration, citation UI, , citation logic, ingestion progress experience, styling | Angel Dhiman |
+| **Frontend & UX Engineer**          | Streamlit chat interface, PDF viewer integration, citation UI, citation logic, ingestion progress experience, styling, RAGAS testing | Angel Dhiman |
 
 | **Data & Infrastructure Engineer**  | Vector store management, hybrid retrieval (vector + BM25), RRF Fusion, documentation | Hiya Ratra |
 
