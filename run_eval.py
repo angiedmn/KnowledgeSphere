@@ -2,10 +2,14 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+import sys
 import time
 import json
+
+import conversational_RAG
 from conversational_RAG import ask_question
-import json
+from retrieval_profiles import build_retrieval_profile
+
 with open("eval_dataset_assigned.json") as f:
     eval_questions = json.load(f)
 
@@ -19,21 +23,33 @@ from langchain_groq import ChatGroq
 from langchain_huggingface import HuggingFaceEmbeddings
 from config import LLM_MODEL_NAME, EMBEDDING_MODEL_NAME
 
+# --- NEW: read the team member name from the command line ---
+TEAM_MEMBER = sys.argv[1] if len(sys.argv) > 1 else None
+if not TEAM_MEMBER:
+    print("Usage: python run_eval.py <your_name>")
+    sys.exit(1)
+
+my_questions = [q for q in eval_questions if q["assigned_to"] == TEAM_MEMBER]
+print(f"Running {len(my_questions)} questions assigned to {TEAM_MEMBER}")
+
+eval_profile = build_retrieval_profile(directness=1.0, semanticness=0.5)
+
 
 def get_ragas_judge():
-    """RAGAS defaults to OpenAI — this wires it to use Groq (text model)
-    and your existing HuggingFace embedding model instead."""
     judge_llm = LangchainLLMWrapper(ChatGroq(model=LLM_MODEL_NAME, temperature=0))
     judge_embeddings = LangchainEmbeddingsWrapper(HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME))
     return judge_llm, judge_embeddings
 
 
-def run_pipeline_on_test_set():
+def run_pipeline_on_test_set(questions):
     results = []
-    for item in eval_questions:
+    for item in questions:
+        conversational_RAG.chat_history = []  # reset — each eval question is independent
         print(f"Running: {item['question']}")
         start = time.perf_counter()
-        answer, source_pages, contexts = ask_question(item["question"], return_contexts=True)
+        answer, source_pages, contexts = ask_question(
+            item["question"], retrieval_profile=eval_profile, return_contexts=True
+        )
         latency_ms = (time.perf_counter() - start) * 1000
 
         results.append({
@@ -42,11 +58,15 @@ def run_pipeline_on_test_set():
             "contexts": contexts,
             "ground_truth": item["ground_truth"],
             "category": item["category"],
+            "assigned_to": item["assigned_to"],
             "latency_ms": latency_ms,
         })
 
-    with open("eval_results.json", "w") as f:
+    # --- NEW: save to a per-person file, not a shared eval_results.json ---
+    output_file = f"eval_results_{TEAM_MEMBER}.json"
+    with open(output_file, "w") as f:
         json.dump(results, f, indent=2)
+    print(f"Saved {len(results)} results to {output_file}")
 
     return results
 
@@ -79,5 +99,5 @@ def score_with_ragas(results):
 
 
 if __name__ == "__main__":
-    results = run_pipeline_on_test_set()
+    results = run_pipeline_on_test_set(my_questions)
     scores = score_with_ragas(results)

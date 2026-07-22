@@ -4,6 +4,8 @@ Run this once, check the printed assignment, then paste the results back
 into eval_dataset.py's assigned_to fields (or just import and use
 ASSIGNED_QUESTIONS directly from here instead).
 """
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))) 
 from collections import defaultdict
 from eval_dataset import eval_questions
 
