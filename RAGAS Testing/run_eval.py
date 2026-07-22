@@ -99,5 +99,8 @@ def score_with_ragas(results):
 
 
 if __name__ == "__main__":
+    import sys
+    TEAM_MEMBER = sys.argv[1]
     results = run_pipeline_on_test_set(my_questions)
     scores = score_with_ragas(results)
+    
